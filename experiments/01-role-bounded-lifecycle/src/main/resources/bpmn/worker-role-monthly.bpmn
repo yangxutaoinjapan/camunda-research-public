@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" id="Definitions_role" targetNamespace="https://example.org/role-bounded-lifecycle">
+
+<bpmn:message id="message_a" name="work.a"><bpmn:extensionElements><zeebe:subscription correlationKey="= roleKey"/></bpmn:extensionElements></bpmn:message>
+<bpmn:message id="message_b" name="work.b"><bpmn:extensionElements><zeebe:subscription correlationKey="= roleKey"/></bpmn:extensionElements></bpmn:message>
+<bpmn:message id="message_c" name="work.c"><bpmn:extensionElements><zeebe:subscription correlationKey="= roleKey"/></bpmn:extensionElements></bpmn:message>
+<bpmn:message id="role_open" name="role.open"/><bpmn:message id="role_close" name="role.close"><bpmn:extensionElements><zeebe:subscription correlationKey="= roleKey"/></bpmn:extensionElements></bpmn:message>
+<bpmn:process id="worker-role-monthly" name="Worker role: scheduled window plus drain" isExecutable="true">
+<bpmn:laneSet id="lanes">
+<bpmn:lane id="lane_a" name="Lane a"><bpmn:flowNodeRef>branch_a</bpmn:flowNodeRef></bpmn:lane>
+<bpmn:lane id="lane_b" name="Lane b"><bpmn:flowNodeRef>branch_b</bpmn:flowNodeRef></bpmn:lane>
+<bpmn:lane id="lane_c" name="Lane c"><bpmn:flowNodeRef>branch_c</bpmn:flowNodeRef></bpmn:lane>
+</bpmn:laneSet>
+<bpmn:startEvent id="role_start" name="role.open"><bpmn:messageEventDefinition id="open_definition" messageRef="role_open"/></bpmn:startEvent>
+<bpmn:parallelGateway id="fork" name="Open lanes"/>
+<bpmn:parallelGateway id="join" name="Lanes drained"/>
+<bpmn:endEvent id="role_end" name="Role completed"/>
+<bpmn:sequenceFlow id="start_fork" sourceRef="role_start" targetRef="fork"/>
+<bpmn:subProcess id="branch_a" name="a: wait until deadline and drain">
+<bpmn:startEvent id="scope_start_a"/><bpmn:intermediateCatchEvent id="deadline_a" name="deadline"><bpmn:timerEventDefinition id="deadline_definition_a"><bpmn:timeDate>= deadline</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent><bpmn:endEvent id="scope_end_a"/>
+<bpmn:sequenceFlow id="wait_in_a" sourceRef="scope_start_a" targetRef="race_a"/>
+<bpmn:sequenceFlow id="wait_out_a" sourceRef="deadline_a" targetRef="scope_end_a"/>
+<bpmn:eventBasedGateway id="race_a"><bpmn:incoming>wait_in_a</bpmn:incoming><bpmn:outgoing>race_timer_a</bpmn:outgoing><bpmn:outgoing>race_close_a</bpmn:outgoing></bpmn:eventBasedGateway>
+<bpmn:intermediateCatchEvent id="close_a" name="role.close"><bpmn:messageEventDefinition id="close_definition_a" messageRef="role_close"/></bpmn:intermediateCatchEvent>
+<bpmn:sequenceFlow id="race_timer_a" sourceRef="race_a" targetRef="deadline_a"/>
+<bpmn:sequenceFlow id="race_close_a" sourceRef="race_a" targetRef="close_a"/>
+<bpmn:sequenceFlow id="close_end_a" sourceRef="close_a" targetRef="scope_end_a"/>
+<bpmn:subProcess id="events_a" name="Pushed work.a (non-interrupting)" triggeredByEvent="true">
+<bpmn:startEvent id="message_start_a" name="work.a" isInterrupting="false"><bpmn:messageEventDefinition id="message_definition_a" messageRef="message_a"/></bpmn:startEvent><bpmn:callActivity id="call_a" name="Call child a"><bpmn:extensionElements><zeebe:calledElement processId="lab-child-a" propagateAllParentVariables="false" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source="= workMillis" target="workMillis"/><zeebe:input source="= roleKey" target="roleKey"/></zeebe:ioMapping></bpmn:extensionElements></bpmn:callActivity><bpmn:endEvent id="work_end_a"/>
+<bpmn:sequenceFlow id="work_in_a" sourceRef="message_start_a" targetRef="call_a"/>
+<bpmn:sequenceFlow id="work_out_a" sourceRef="call_a" targetRef="work_end_a"/>
+</bpmn:subProcess></bpmn:subProcess>
+<bpmn:sequenceFlow id="fork_a" sourceRef="fork" targetRef="branch_a"/>
+<bpmn:sequenceFlow id="join_a" sourceRef="branch_a" targetRef="join"/>
+<bpmn:subProcess id="branch_b" name="b: wait until deadline and drain">
+<bpmn:startEvent id="scope_start_b"/><bpmn:intermediateCatchEvent id="deadline_b" name="deadline"><bpmn:timerEventDefinition id="deadline_definition_b"><bpmn:timeDate>= deadline</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent><bpmn:endEvent id="scope_end_b"/>
+<bpmn:sequenceFlow id="wait_in_b" sourceRef="scope_start_b" targetRef="race_b"/>
+<bpmn:sequenceFlow id="wait_out_b" sourceRef="deadline_b" targetRef="scope_end_b"/>
+<bpmn:eventBasedGateway id="race_b"><bpmn:incoming>wait_in_b</bpmn:incoming><bpmn:outgoing>race_timer_b</bpmn:outgoing><bpmn:outgoing>race_close_b</bpmn:outgoing></bpmn:eventBasedGateway>
+<bpmn:intermediateCatchEvent id="close_b" name="role.close"><bpmn:messageEventDefinition id="close_definition_b" messageRef="role_close"/></bpmn:intermediateCatchEvent>
+<bpmn:sequenceFlow id="race_timer_b" sourceRef="race_b" targetRef="deadline_b"/>
+<bpmn:sequenceFlow id="race_close_b" sourceRef="race_b" targetRef="close_b"/>
+<bpmn:sequenceFlow id="close_end_b" sourceRef="close_b" targetRef="scope_end_b"/>
+<bpmn:subProcess id="events_b" name="Pushed work.b (non-interrupting)" triggeredByEvent="true">
+<bpmn:startEvent id="message_start_b" name="work.b" isInterrupting="false"><bpmn:messageEventDefinition id="message_definition_b" messageRef="message_b"/></bpmn:startEvent><bpmn:callActivity id="call_b" name="Call child b"><bpmn:extensionElements><zeebe:calledElement processId="lab-child-b" propagateAllParentVariables="false" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source="= workMillis" target="workMillis"/><zeebe:input source="= roleKey" target="roleKey"/></zeebe:ioMapping></bpmn:extensionElements></bpmn:callActivity><bpmn:endEvent id="work_end_b"/>
+<bpmn:sequenceFlow id="work_in_b" sourceRef="message_start_b" targetRef="call_b"/>
+<bpmn:sequenceFlow id="work_out_b" sourceRef="call_b" targetRef="work_end_b"/>
+</bpmn:subProcess></bpmn:subProcess>
+<bpmn:sequenceFlow id="fork_b" sourceRef="fork" targetRef="branch_b"/>
+<bpmn:sequenceFlow id="join_b" sourceRef="branch_b" targetRef="join"/>
+<bpmn:subProcess id="branch_c" name="c: wait until deadline and drain">
+<bpmn:startEvent id="scope_start_c"/><bpmn:intermediateCatchEvent id="deadline_c" name="deadline"><bpmn:timerEventDefinition id="deadline_definition_c"><bpmn:timeDate>= deadline</bpmn:timeDate></bpmn:timerEventDefinition></bpmn:intermediateCatchEvent><bpmn:endEvent id="scope_end_c"/>
+<bpmn:sequenceFlow id="wait_in_c" sourceRef="scope_start_c" targetRef="race_c"/>
+<bpmn:sequenceFlow id="wait_out_c" sourceRef="deadline_c" targetRef="scope_end_c"/>
+<bpmn:eventBasedGateway id="race_c"><bpmn:incoming>wait_in_c</bpmn:incoming><bpmn:outgoing>race_timer_c</bpmn:outgoing><bpmn:outgoing>race_close_c</bpmn:outgoing></bpmn:eventBasedGateway>
+<bpmn:intermediateCatchEvent id="close_c" name="role.close"><bpmn:messageEventDefinition id="close_definition_c" messageRef="role_close"/></bpmn:intermediateCatchEvent>
+<bpmn:sequenceFlow id="race_timer_c" sourceRef="race_c" targetRef="deadline_c"/>
+<bpmn:sequenceFlow id="race_close_c" sourceRef="race_c" targetRef="close_c"/>
+<bpmn:sequenceFlow id="close_end_c" sourceRef="close_c" targetRef="scope_end_c"/>
+<bpmn:subProcess id="events_c" name="Pushed work.c (non-interrupting)" triggeredByEvent="true">
+<bpmn:startEvent id="message_start_c" name="work.c" isInterrupting="false"><bpmn:messageEventDefinition id="message_definition_c" messageRef="message_c"/></bpmn:startEvent><bpmn:callActivity id="call_c" name="Call child c"><bpmn:extensionElements><zeebe:calledElement processId="lab-child-c" propagateAllParentVariables="false" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source="= workMillis" target="workMillis"/><zeebe:input source="= roleKey" target="roleKey"/></zeebe:ioMapping></bpmn:extensionElements></bpmn:callActivity><bpmn:endEvent id="work_end_c"/>
+<bpmn:sequenceFlow id="work_in_c" sourceRef="message_start_c" targetRef="call_c"/>
+<bpmn:sequenceFlow id="work_out_c" sourceRef="call_c" targetRef="work_end_c"/>
+</bpmn:subProcess></bpmn:subProcess>
+<bpmn:sequenceFlow id="fork_c" sourceRef="fork" targetRef="branch_c"/>
+<bpmn:sequenceFlow id="join_c" sourceRef="branch_c" targetRef="join"/>
+<bpmn:sequenceFlow id="join_end" sourceRef="join" targetRef="role_end"/>
+</bpmn:process><bpmndi:BPMNDiagram id="Diagram_role"><bpmndi:BPMNPlane id="Plane_role" bpmnElement="worker-role-monthly">
+<bpmndi:BPMNShape id="DI_lane_a" bpmnElement="lane_a"><dc:Bounds x="40" y="60" width="1190" height="330"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_branch_a" bpmnElement="branch_a" isExpanded="true"><dc:Bounds x="255" y="80" width="750" height="290"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_scope_start_a" bpmnElement="scope_start_a"><dc:Bounds x="300" y="137" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_race_a" bpmnElement="race_a"><dc:Bounds x="390" y="130" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_deadline_a" bpmnElement="deadline_a"><dc:Bounds x="520" y="97" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_close_a" bpmnElement="close_a"><dc:Bounds x="520" y="177" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_scope_end_a" bpmnElement="scope_end_a"><dc:Bounds x="700" y="137" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_events_a" bpmnElement="events_a" isExpanded="true"><dc:Bounds x="290" y="230" width="675" height="130"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_message_start_a" bpmnElement="message_start_a"><dc:Bounds x="330" y="277" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_call_a" bpmnElement="call_a"><dc:Bounds x="450" y="255" width="140" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_work_end_a" bpmnElement="work_end_a"><dc:Bounds x="650" y="277" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_lane_b" bpmnElement="lane_b"><dc:Bounds x="40" y="400" width="1190" height="330"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_branch_b" bpmnElement="branch_b" isExpanded="true"><dc:Bounds x="255" y="420" width="750" height="290"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_scope_start_b" bpmnElement="scope_start_b"><dc:Bounds x="300" y="477" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_race_b" bpmnElement="race_b"><dc:Bounds x="390" y="470" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_deadline_b" bpmnElement="deadline_b"><dc:Bounds x="520" y="437" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_close_b" bpmnElement="close_b"><dc:Bounds x="520" y="517" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_scope_end_b" bpmnElement="scope_end_b"><dc:Bounds x="700" y="477" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_events_b" bpmnElement="events_b" isExpanded="true"><dc:Bounds x="290" y="570" width="675" height="130"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_message_start_b" bpmnElement="message_start_b"><dc:Bounds x="330" y="617" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_call_b" bpmnElement="call_b"><dc:Bounds x="450" y="595" width="140" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_work_end_b" bpmnElement="work_end_b"><dc:Bounds x="650" y="617" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_lane_c" bpmnElement="lane_c"><dc:Bounds x="40" y="740" width="1190" height="330"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_branch_c" bpmnElement="branch_c" isExpanded="true"><dc:Bounds x="255" y="760" width="750" height="290"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_scope_start_c" bpmnElement="scope_start_c"><dc:Bounds x="300" y="817" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_race_c" bpmnElement="race_c"><dc:Bounds x="390" y="810" width="50" height="50"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_deadline_c" bpmnElement="deadline_c"><dc:Bounds x="520" y="777" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_close_c" bpmnElement="close_c"><dc:Bounds x="520" y="857" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_scope_end_c" bpmnElement="scope_end_c"><dc:Bounds x="700" y="817" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_events_c" bpmnElement="events_c" isExpanded="true"><dc:Bounds x="290" y="910" width="675" height="130"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_message_start_c" bpmnElement="message_start_c"><dc:Bounds x="330" y="957" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_call_c" bpmnElement="call_c"><dc:Bounds x="450" y="935" width="140" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_work_end_c" bpmnElement="work_end_c"><dc:Bounds x="650" y="957" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_role_start" bpmnElement="role_start"><dc:Bounds x="75" y="547" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_fork" bpmnElement="fork"><dc:Bounds x="155" y="540" width="50" height="50"/><bpmndi:BPMNLabel><dc:Bounds x="187" y="598" width="62" height="14"/></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_join" bpmnElement="join"><dc:Bounds x="1060" y="540" width="50" height="50"/><bpmndi:BPMNLabel><dc:Bounds x="1056" y="598" width="78" height="14"/></bpmndi:BPMNLabel></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_role_end" bpmnElement="role_end"><dc:Bounds x="1150" y="547" width="36" height="36"/></bpmndi:BPMNShape>
+<bpmndi:BPMNEdge id="DI_wait_in_a" bpmnElement="wait_in_a"><di:waypoint x="336" y="155"/><di:waypoint x="390" y="155"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_race_timer_a" bpmnElement="race_timer_a"><di:waypoint x="415" y="130"/><di:waypoint x="415" y="115"/><di:waypoint x="520" y="115"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_race_close_a" bpmnElement="race_close_a"><di:waypoint x="415" y="180"/><di:waypoint x="415" y="195"/><di:waypoint x="520" y="195"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_wait_out_a" bpmnElement="wait_out_a"><di:waypoint x="556" y="115"/><di:waypoint x="718" y="115"/><di:waypoint x="718" y="137"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_close_end_a" bpmnElement="close_end_a"><di:waypoint x="556" y="195"/><di:waypoint x="718" y="195"/><di:waypoint x="718" y="173"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_work_in_a" bpmnElement="work_in_a"><di:waypoint x="366" y="295"/><di:waypoint x="450" y="295"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_work_out_a" bpmnElement="work_out_a"><di:waypoint x="590" y="295"/><di:waypoint x="650" y="295"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_wait_in_b" bpmnElement="wait_in_b"><di:waypoint x="336" y="495"/><di:waypoint x="390" y="495"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_race_timer_b" bpmnElement="race_timer_b"><di:waypoint x="415" y="470"/><di:waypoint x="415" y="455"/><di:waypoint x="520" y="455"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_race_close_b" bpmnElement="race_close_b"><di:waypoint x="415" y="520"/><di:waypoint x="415" y="535"/><di:waypoint x="520" y="535"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_wait_out_b" bpmnElement="wait_out_b"><di:waypoint x="556" y="455"/><di:waypoint x="718" y="455"/><di:waypoint x="718" y="477"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_close_end_b" bpmnElement="close_end_b"><di:waypoint x="556" y="535"/><di:waypoint x="718" y="535"/><di:waypoint x="718" y="513"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_work_in_b" bpmnElement="work_in_b"><di:waypoint x="366" y="635"/><di:waypoint x="450" y="635"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_work_out_b" bpmnElement="work_out_b"><di:waypoint x="590" y="635"/><di:waypoint x="650" y="635"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_wait_in_c" bpmnElement="wait_in_c"><di:waypoint x="336" y="835"/><di:waypoint x="390" y="835"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_race_timer_c" bpmnElement="race_timer_c"><di:waypoint x="415" y="810"/><di:waypoint x="415" y="795"/><di:waypoint x="520" y="795"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_race_close_c" bpmnElement="race_close_c"><di:waypoint x="415" y="860"/><di:waypoint x="415" y="875"/><di:waypoint x="520" y="875"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_wait_out_c" bpmnElement="wait_out_c"><di:waypoint x="556" y="795"/><di:waypoint x="718" y="795"/><di:waypoint x="718" y="817"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_close_end_c" bpmnElement="close_end_c"><di:waypoint x="556" y="875"/><di:waypoint x="718" y="875"/><di:waypoint x="718" y="853"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_work_in_c" bpmnElement="work_in_c"><di:waypoint x="366" y="975"/><di:waypoint x="450" y="975"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_work_out_c" bpmnElement="work_out_c"><di:waypoint x="590" y="975"/><di:waypoint x="650" y="975"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_start_fork" bpmnElement="start_fork"><di:waypoint x="111" y="565"/><di:waypoint x="155" y="565"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_fork_a" bpmnElement="fork_a"><di:waypoint x="180" y="540"/><di:waypoint x="180" y="225"/><di:waypoint x="255" y="225"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_fork_b" bpmnElement="fork_b"><di:waypoint x="205" y="565"/><di:waypoint x="255" y="565"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_fork_c" bpmnElement="fork_c"><di:waypoint x="180" y="590"/><di:waypoint x="180" y="905"/><di:waypoint x="255" y="905"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_join_a" bpmnElement="join_a"><di:waypoint x="1005" y="225"/><di:waypoint x="1085" y="225"/><di:waypoint x="1085" y="540"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_join_b" bpmnElement="join_b"><di:waypoint x="1005" y="565"/><di:waypoint x="1060" y="565"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_join_c" bpmnElement="join_c"><di:waypoint x="1005" y="905"/><di:waypoint x="1085" y="905"/><di:waypoint x="1085" y="590"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_join_end" bpmnElement="join_end"><di:waypoint x="1110" y="565"/><di:waypoint x="1150" y="565"/></bpmndi:BPMNEdge>
+</bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>

@@ -1,0 +1,28 @@
+[Unit]
+Description=Role bounded lifecycle lab and web front end
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+StateDirectory=lifecycle-lab
+StateDirectoryMode=0700
+User=lifecycle-lab
+Group=lifecycle-lab
+WorkingDirectory=/opt/lifecycle-lab
+EnvironmentFile=/etc/lifecycle-lab/env
+ExecStart=/usr/bin/java -Xms64m -Xmx192m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -Xss512k -XX:TieredStopAtLevel=1 -Duser.timezone=UTC -jar /opt/lifecycle-lab/role-bounded-lifecycle.jar serve
+Restart=on-failure
+RestartSec=5
+MemoryMax=400M
+MemorySwapMax=0
+TasksMax=128
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadOnlyPaths=/opt/lifecycle-lab
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
