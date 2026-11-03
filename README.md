@@ -63,6 +63,17 @@ trace of any child leads back to the window that owned it.
 Start with the experiment's README: it opens with the question in plain
 words, a diagram of the process and a glossary, before any configuration.
 
+## Working paper
+
+[`paper/working-paper.md`](paper/working-paper.md) (English) and
+[`paper/working-paper.ja.md`](paper/working-paper.ja.md) (Japanese) hold an experience
+report, "When my operational checks answered the wrong question": episodes from
+operating a small home-lab platform where a successful check meant less than it
+seemed to. It is a working paper, not peer reviewed, and **its full text was written
+by AI assistants (Claude and Codex)**, which the paper states in its own text.
+It is not specific to Camunda and is kept here with the experiments as part of the
+same notebook.
+
 ## Reading the evidence
 
 - Each experiment has a `docs/findings.md`. A claim is either backed by a run
