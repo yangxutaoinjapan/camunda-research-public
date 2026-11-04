@@ -61,6 +61,10 @@ In words:
    call creates a real **child process instance** whose parent *and* root are the
    role. Children run in parallel, and neither the race nor other children are
    disturbed.
+   Nothing claims a child: it is **started by the `work.*` message and finished by
+   a message** (`work.a|b|c.done`, correlation key `childId`) that the Java side
+   publishes once the child's work time has passed. There is no job worker and no
+   service task in a child.
 4. A lane does not finish when its race is decided; it finishes when the race
    is decided **and** every child it started has completed. That is the
    **drain**.
@@ -68,8 +72,9 @@ In words:
 
 So the diagram *is* the life cycle: open by message, close by deadline or
 command, drain by waiting for children. There is no lifecycle job that wakes up
-to look at a date. Incidents (for example a child stuck on a failing job) can
-still prevent a drain; the experiment does not hide that.
+to look at a date. A child whose finish message never arrives can still
+prevent a drain; the Java side therefore re-sends it from the engine's own state
+(a reconciler), so a restart of the lab cannot strand a child.
 
 ## What you see on the page
 
@@ -134,9 +139,11 @@ were made and which behaviours are still unverified.
 Java 21, Camunda 8 / Zeebe, no Spring. A message-started role owns a scheduled
 window. Pushed `work.a|b|c` messages create real call-activity children with the
 role's instance key as parent and root. Each lane races its absolute `deadline`
-against `role.close`, then drains its non-interrupting event subprocess calls.
+against `role.close`, then drains its non-interrupting event subprocess calls. Each child waits for a
+finish message that Java publishes; no job worker takes part.
 The top-level role completes when all three lanes have drained. No lifecycle
-polling job or `pollInterval` variable is used. Incidents can prevent drain.
+polling job or `pollInterval` variable is used. A child whose finish message
+never arrives can prevent drain.
 
 ## Run
 
@@ -145,7 +152,7 @@ for offline builds. From this directory, build with `mvn -q -o package` when
 packaging is appropriate. Keep `target/role-bounded-lifecycle.jar` and `target/lib/`
 together. `scripts/lab.sh deploy` deploys the message-started role and three child
 definitions in one request. `scripts/lab.sh serve` runs the page, scheduler and
-workers in one JVM; it does not deploy. Open http://localhost:8088/.
+child finisher in one JVM; it does not deploy. Open http://localhost:8088/.
 
 The page is **Role lifecycle**: schedule controls, a dense role table with
 parent-filtered child counts, and event sending to the newest open role.
@@ -188,7 +195,7 @@ continue independently of `serve`. See [design](docs/design.md).
 `CAMUNDA_REST_ADDRESS` defaults to `http://localhost:8080` (without `/v2`).
 Client authentication uses standard client variables and optional
 gateway credential support (`GATEWAY_CLIENT_ID` / `GATEWAY_CLIENT_SECRET`, sent as request headers). `LAB_HTTP_BIND=127.0.0.1`,
-`LAB_HTTP_PORT=8088`, `LAB_SERVE_WORKERS=true`, `WORK_MILLIS=200`.
+`LAB_HTTP_PORT=8088`. The command line `publish` takes `--millis N` (default 200).
 `LAB_BASE_PATH` is empty by default; `/lifecycle` serves the prefixed page and
 relative APIs. Use only lowercase letters, digits, `/`, `_`, `-` in the prefix.
 `LAB_WINDOW=minute` selects the minute proof definition for `serve`.
@@ -250,7 +257,7 @@ scheduler with `every 1 minute` / `after 1 minute`, begins at a fresh minute,
 and checks two root roles and 18 real children with correct ancestry, overlapping
 drain and completion after deadline. A separate early-close phase adds three
 20-second children and checks all message waits complete while children drain
-(final total 2 roots, 21 children). Workers run in the same JVM. Do not deploy
+(final total 2 roots, 21 children). The child finisher runs in the same JVM. Do not deploy
 both role variants together: they share the `role.open` message name.
 
 Cleanup always runs on success/failure. `scripts/lab.sh --cleanup` separately
@@ -260,5 +267,5 @@ Stop the disposable engine after collecting results. A live proof and engine
 permissions remain unverified. Earlier inline measurements are historical;
 see [findings](docs/findings.md) and [deployment](deploy/README.md).
 
-Client heap defaults below 256 MiB, bounded activation 8 jobs per lane; RSS and
+Client heap defaults below 256 MiB; RSS and
 engine/search memory are separate and require measurement on the target node.

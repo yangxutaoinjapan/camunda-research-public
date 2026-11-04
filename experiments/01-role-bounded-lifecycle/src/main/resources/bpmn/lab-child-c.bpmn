@@ -1,16 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <bpmn:definitions xmlns:bpmn="http://www.omg.org/spec/BPMN/20100524/MODEL" xmlns:zeebe="http://camunda.org/schema/zeebe/1.0" xmlns:bpmndi="http://www.omg.org/spec/BPMN/20100524/DI" xmlns:dc="http://www.omg.org/spec/DD/20100524/DC" xmlns:di="http://www.omg.org/spec/DD/20100524/DI" id="Definitions_child_c" targetNamespace="http://example.org/lab">
+<bpmn:message id="done_c" name="work.c.done"><bpmn:extensionElements><zeebe:subscription correlationKey="= childId"/></bpmn:extensionElements></bpmn:message>
 <bpmn:process id="lab-child-c" name="Child c" isExecutable="true">
 <bpmn:startEvent id="start_c"/>
-<bpmn:serviceTask id="work_c" name="Handle c"><bpmn:extensionElements><zeebe:taskDefinition type="lab.work.c" retries="3"/></bpmn:extensionElements></bpmn:serviceTask>
+<bpmn:intermediateCatchEvent id="work_c" name="Wait for finish message"><bpmn:messageEventDefinition id="done_definition_c" messageRef="done_c"/></bpmn:intermediateCatchEvent>
 <bpmn:endEvent id="end_c"/>
 <bpmn:sequenceFlow id="in_c" sourceRef="start_c" targetRef="work_c"/>
 <bpmn:sequenceFlow id="out_c" sourceRef="work_c" targetRef="end_c"/>
 </bpmn:process>
 <bpmndi:BPMNDiagram id="Diagram_c"><bpmndi:BPMNPlane id="Plane_c" bpmnElement="lab-child-c">
 <bpmndi:BPMNShape id="DI_start_c" bpmnElement="start_c"><dc:Bounds x="100" y="122" width="36" height="36"/></bpmndi:BPMNShape>
-<bpmndi:BPMNShape id="DI_work_c" bpmnElement="work_c"><dc:Bounds x="200" y="100" width="140" height="80"/></bpmndi:BPMNShape>
+<bpmndi:BPMNShape id="DI_work_c" bpmnElement="work_c"><dc:Bounds x="250" y="122" width="36" height="36"/></bpmndi:BPMNShape>
 <bpmndi:BPMNShape id="DI_end_c" bpmnElement="end_c"><dc:Bounds x="410" y="122" width="36" height="36"/></bpmndi:BPMNShape>
-<bpmndi:BPMNEdge id="DI_in_c" bpmnElement="in_c"><di:waypoint x="136" y="140"/><di:waypoint x="200" y="140"/></bpmndi:BPMNEdge>
-<bpmndi:BPMNEdge id="DI_out_c" bpmnElement="out_c"><di:waypoint x="340" y="140"/><di:waypoint x="410" y="140"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_in_c" bpmnElement="in_c"><di:waypoint x="136" y="140"/><di:waypoint x="250" y="140"/></bpmndi:BPMNEdge>
+<bpmndi:BPMNEdge id="DI_out_c" bpmnElement="out_c"><di:waypoint x="286" y="140"/><di:waypoint x="410" y="140"/></bpmndi:BPMNEdge>
 </bpmndi:BPMNPlane></bpmndi:BPMNDiagram></bpmn:definitions>

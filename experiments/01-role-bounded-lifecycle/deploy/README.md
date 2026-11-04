@@ -1,7 +1,7 @@
 # Run on a small host (Ubuntu, 1 GiB)
 
 The Camunda engine and its search storage run remotely. This node runs one Java
-21 JVM: three job workers, the JDK HTTP server, and the offline vanilla JS page.
+21 JVM: the child finisher (it publishes the finish message of each child), the JDK HTTP server, and the offline vanilla JS page.
 This unit limits the lab to 400 MiB,
 with no swap allowance. The heap is 192 MiB. These are budgets, not measured RSS
 guarantees; leave room for Ubuntu and any proxy. An OOM kill is
@@ -49,14 +49,13 @@ An explicitly empty token is refused. Never put credentials in the repository,
 command lines, URLs, browser query strings, or logs. The app does not log tokens
 or request bodies. The root-owned environment file is read by systemd.
 
-Defaults: `LAB_HTTP_BIND=127.0.0.1`, `LAB_HTTP_PORT=8088`,
-`LAB_SERVE_WORKERS=true`. The supplied env file sets `LAB_BASE_PATH=/lifecycle`;
+Defaults: `LAB_HTTP_BIND=127.0.0.1`, `LAB_HTTP_PORT=8088`. The supplied env file sets `LAB_BASE_PATH=/lifecycle`;
 when unset or empty it serves at `/`. A nonempty base must start with `/` and
 use only `a-z`, `0-9`, `-`, `_`, and `/`. Trailing slashes are removed (`/`
 means the root); other values fail at startup. The bare base redirects with
 308 to its trailing-slash URL. Page, API and any static asset paths are under
-the base; requests outside it return 404. Set `LAB_SERVE_WORKERS=false` only
-when workers run elsewhere.
+the base; requests outside it return 404. `LAB_SERVE_WORKERS` and `WORK_MILLIS`
+from older env files are ignored (there are no workers any more).
 Without a token the server refuses non-loopback binding. The app directory is
 read-only to the service; no local data files are required.
 
@@ -104,9 +103,9 @@ outside `/opt/lifecycle-lab`, plus a protected copy of the unit and environment.
 Stop the service, replace jar and lib together, then start it. For rollback,
 stop it again, restore that matched pair and any changed unit/environment,
 run `systemctl daemon-reload`, and restart. Check status, logs and the page.
-Do not replace files while the JVM is running. Stopping workers does not cancel
-engine instances; outstanding jobs can wait until workers return and their job
-leases expire. Application rollback does not undo process deployments or messages.
+Do not replace files while the JVM is running. Stopping the lab does not cancel
+engine instances; children wait for their finish message until the lab runs again,
+and its reconciler then publishes every finish that is due. Application rollback does not undo process deployments or messages.
 
 ## Engine authentication and tenant permissions (client 8.10.7)
 
@@ -143,28 +142,26 @@ endpoint requires Access headers, this version of the lab cannot complete OIDC
 login; configuring the pair does not solve that boundary. No custom token client
 or process-wide URL interception is installed.
 
-The lab explicitly uses REST, disables worker streaming and client-side load
+The lab explicitly uses REST and disables client-side load
 balancing, and sets the unused gRPC address to http://127.0.0.1:26500. The 8.10.7
 builder defaults to REST preference true and gRPC http://0.0.0.0:26500, but applies
 environment overrides during build. To prevent overrides from enabling gRPC,
 startup rejects CAMUNDA_PREFER_REST other than true, streaming/load-balancing set
 to true, and a different CAMUNDA_GRPC_ADDRESS. Leave these variables unset.
-The library still constructs a lazy gRPC channel; lab commands and job polling
-use REST, and no topology load balancing or job streams are enabled.
+The library still constructs a lazy gRPC channel; lab commands
+use REST, and no topology load balancing is enabled.
 
 Grant the client identity access in the lab's tenant only. Required capabilities:
 RESOURCE CREATE (deployment), PROCESS_DEFINITION read, PROCESS_INSTANCE read
 (process-instance search including parentProcessInstanceKey filter and
-parent/root fields, variables and element search), MESSAGE CREATE (publication), and job
-activation/completion for `lab.work.a`, `lab.work.b`, `lab.work.c`. In the local
+parent/root fields, variables and element search), and MESSAGE CREATE (publication: `role.open`, `role.close`, `work.a|b|c` and `work.a|b|c.done`). No job permission is needed. In the local
 8.10.7 authorization enums there is no standalone PROCESS_INSTANCE or JOB resource:
 use PROCESS_DEFINITION permissions READ_PROCESS_DEFINITION,
 READ_PROCESS_INSTANCE and UPDATE_PROCESS_INSTANCE for the lab definitions
 `worker-role-monthly`, `worker-role-minute`, and `lab-child-a|b|c` as applicable.
 Allow creation of child instances via call activities (CREATE_PROCESS_INSTANCE on
-the child definitions, subject to engine enforcement). Job access is process-scoped
-in this model: only the children contain jobs, exclusively `lab.work.a|b|c`.
-Do not grant unrelated job types.
+the child definitions, subject to engine enforcement). The definitions contain no
+service task, so the lab identity needs no job access at all; do not grant any.
 Expression sampling/preflight needs EXPRESSION EVALUATE. The `experiment` and
 `cleanup` commands additionally need PROCESS_DEFINITION CANCEL_PROCESS_INSTANCE
 and RESOURCE DELETE (delete only the minute role definition to remove its timer, never the shared

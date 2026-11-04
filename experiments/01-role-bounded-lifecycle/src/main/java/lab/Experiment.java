@@ -7,7 +7,7 @@ import java.time.*;
 import java.util.*;
 import java.util.function.BooleanSupplier;
 
-/** All behavioral assertions use REST search, never worker-side completion counters. */
+/** All behavioral assertions use REST search, never counters kept by the finishing code. */
 final class Experiment {
     private final CamundaClient c;
     private final List<String[]> checks = new ArrayList<>();
@@ -21,7 +21,8 @@ final class Experiment {
     private java.util.Map<String, Long> baseline = java.util.Map.of("ROOT", 0L, "CHILD", 0L);
     void run() throws Exception {
         System.out.println("Fresh exclusive disposable engine required; real time, engine timezone UTC.");
-        try (var workers = new Main.Workers(c)) {
+        try (var finisher = new Finisher(c)) {
+            finisher.start(Duration.ofSeconds(1)); // children are finished by message from this process; the reconciler is the backstop
             // History of earlier runs stays in the search index; only ACTIVE lab instances and a deployed minute definition
             // disturb the proof. Everything below counts what started after `begin` and compares totals with the baseline.
             // A deleted definition can still be listed by the search index, so only ACTIVE instances count as "not clean".
@@ -46,9 +47,9 @@ final class Experiment {
             check("W1 deadline equals next minute", () -> c.newVariableSearchRequest()
                 .filter(f -> f.processInstanceKey(w1).scopeKey(w1).name("deadline")).send().join().items().stream()
                 .anyMatch(v -> deadline.equals(Main.parseEngineTime(v.getValueAsType(String.class)))));
-            for (String lane : lanes()) Main.publish(c, window, lane, 3, 200);
+            for (String lane : lanes()) Main.publish(c, window, lane, 3, 200, finisher);
             check("W1 three completed child instances per lane; still active", () -> events(w1, 3, ProcessInstanceState.COMPLETED) && active(role(w1)));
-            for (String lane : lanes()) Main.publish(c, window, lane, 1, 70_000);
+            for (String lane : lanes()) Main.publish(c, window, lane, 1, 70_000, finisher);
             check("W1 slow child instance active in every lane", () -> events(w1, 1, ProcessInstanceState.ACTIVE));
             check("W2 starts while W1 drains", () -> next(w1) != null && active(next(w1)) && active(role(w1)));
             long w2 = next(w1).getProcessInstanceKey();
@@ -58,7 +59,7 @@ final class Experiment {
                 for (String lane : lanes()) if (count(w1, "deadline_" + lane, ElementInstanceState.COMPLETED) != 1) return false;
                 return events(w1, 1, ProcessInstanceState.ACTIVE) && active(role(w1));
             });
-            for (String lane : lanes()) Main.publish(c, window, lane, 2, 200);
+            for (String lane : lanes()) Main.publish(c, window, lane, 2, 200, finisher);
             check("W2 has two completed child instances per lane; W1 stays at four", () -> events(w2, 2, ProcessInstanceState.COMPLETED) && events(w1, 4, null));
             check("W1 completed after slow drain; W2 still active", () -> role(w1).getState() == ProcessInstanceState.COMPLETED && active(role(w2)));
             check("W1 four completed child instances per lane and end after deadline", () -> events(w1, 4, ProcessInstanceState.COMPLETED)
@@ -72,7 +73,7 @@ final class Experiment {
             });
             ticking = false;
             // Separate early-close phase after the 18-child deadline proof.
-            for (String lane : lanes()) Main.publish(c, window, lane, 1, 20_000);
+            for (String lane : lanes()) Main.publish(c, window, lane, 1, 20_000, finisher);
             check("early close: W2 child active in every lane", () -> events(w2, 1, ProcessInstanceState.ACTIVE));
             scheduler.closeNow();
             check("early close: all three message catches complete while W2 drains", () -> {

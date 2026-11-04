@@ -117,3 +117,30 @@ zone behavior, or engine downtime at midnight.
 If deletion is unsupported or denied, cancellation alone does not stop future
 cron starts: stop the disposable engine. Always stop it after collecting results.
 No live minute run or memory measurement was performed during this offline change.
+
+## 2026-11-04: stuck children behind a job worker
+
+Observed on the live engine (read-only): role instance 11258999071103818
+(`worker-role-monthly`, `role-2026-11`, started 2026-11-03 16:47Z) stayed ACTIVE while
+new children completed every few seconds. Eight child instances per lane (24) created
+between 16:48:25 and 16:49:05 on 2026-11-03 were still ACTIVE twelve hours later at the
+service task `work_a|b|c`: Operate job state CREATED, no worker, retries 3, no incident.
+Job metrics: created minus completed was 8 for each of `lab.work.a|b|c`, failed 0.
+The worker polled every 100 ms and completed 1074 later `lab.work.a` jobs, so the 8
+were not waiting for a worker; they had been taken and not completed. Not proven: how
+the response was lost (the engine does not export job records). The settings that make
+a loss permanent: job timeout 90 days, request timeout 15 s, and a handler that returned
+without completing or failing the job when interrupted. Consequence: a lane drains only
+when no child runs, so one lost job holds the role open.
+
+Change: children no longer use jobs (see design.md, "Children are started and finished
+by messages"). The new behaviour is unverified on a live engine until the experiment
+runs.
+
+### Live proof of the message-driven children (2026-11-04)
+
+Revised artefact, minute variant, live Camunda: all 17 assertions
+PASS, including a child of 70 s that kept its role draining and finished by message,
+three-lane early close, 18 children with correct ancestry in the deadline phase and 21 in
+total, and cleanup of the minute roles. Role lifetimes: W1 PT1M23.883S (window PT59.69S +
+drain PT24.193S), W2 PT53.007S. No job worker took part. One sample; not a load test.

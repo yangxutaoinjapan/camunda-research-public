@@ -26,7 +26,7 @@
 <bpmn:sequenceFlow id="race_close_a" sourceRef="race_a" targetRef="close_a"/>
 <bpmn:sequenceFlow id="close_end_a" sourceRef="close_a" targetRef="scope_end_a"/>
 <bpmn:subProcess id="events_a" name="Pushed work.a (non-interrupting)" triggeredByEvent="true">
-<bpmn:startEvent id="message_start_a" name="work.a" isInterrupting="false"><bpmn:messageEventDefinition id="message_definition_a" messageRef="message_a"/></bpmn:startEvent><bpmn:callActivity id="call_a" name="Call child a"><bpmn:extensionElements><zeebe:calledElement processId="lab-child-a" propagateAllParentVariables="false" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source="= workMillis" target="workMillis"/><zeebe:input source="= roleKey" target="roleKey"/></zeebe:ioMapping></bpmn:extensionElements></bpmn:callActivity><bpmn:endEvent id="work_end_a"/>
+<bpmn:startEvent id="message_start_a" name="work.a" isInterrupting="false"><bpmn:messageEventDefinition id="message_definition_a" messageRef="message_a"/></bpmn:startEvent><bpmn:callActivity id="call_a" name="Call child a"><bpmn:extensionElements><zeebe:calledElement processId="lab-child-a" propagateAllParentVariables="false" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source="= workMillis" target="workMillis"/><zeebe:input source="= roleKey" target="roleKey"/><zeebe:input source="= childId" target="childId"/></zeebe:ioMapping></bpmn:extensionElements></bpmn:callActivity><bpmn:endEvent id="work_end_a"/>
 <bpmn:sequenceFlow id="work_in_a" sourceRef="message_start_a" targetRef="call_a"/>
 <bpmn:sequenceFlow id="work_out_a" sourceRef="call_a" targetRef="work_end_a"/>
 </bpmn:subProcess></bpmn:subProcess>
@@ -42,7 +42,7 @@
 <bpmn:sequenceFlow id="race_close_b" sourceRef="race_b" targetRef="close_b"/>
 <bpmn:sequenceFlow id="close_end_b" sourceRef="close_b" targetRef="scope_end_b"/>
 <bpmn:subProcess id="events_b" name="Pushed work.b (non-interrupting)" triggeredByEvent="true">
-<bpmn:startEvent id="message_start_b" name="work.b" isInterrupting="false"><bpmn:messageEventDefinition id="message_definition_b" messageRef="message_b"/></bpmn:startEvent><bpmn:callActivity id="call_b" name="Call child b"><bpmn:extensionElements><zeebe:calledElement processId="lab-child-b" propagateAllParentVariables="false" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source="= workMillis" target="workMillis"/><zeebe:input source="= roleKey" target="roleKey"/></zeebe:ioMapping></bpmn:extensionElements></bpmn:callActivity><bpmn:endEvent id="work_end_b"/>
+<bpmn:startEvent id="message_start_b" name="work.b" isInterrupting="false"><bpmn:messageEventDefinition id="message_definition_b" messageRef="message_b"/></bpmn:startEvent><bpmn:callActivity id="call_b" name="Call child b"><bpmn:extensionElements><zeebe:calledElement processId="lab-child-b" propagateAllParentVariables="false" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source="= workMillis" target="workMillis"/><zeebe:input source="= roleKey" target="roleKey"/><zeebe:input source="= childId" target="childId"/></zeebe:ioMapping></bpmn:extensionElements></bpmn:callActivity><bpmn:endEvent id="work_end_b"/>
 <bpmn:sequenceFlow id="work_in_b" sourceRef="message_start_b" targetRef="call_b"/>
 <bpmn:sequenceFlow id="work_out_b" sourceRef="call_b" targetRef="work_end_b"/>
 </bpmn:subProcess></bpmn:subProcess>
@@ -58,7 +58,7 @@
 <bpmn:sequenceFlow id="race_close_c" sourceRef="race_c" targetRef="close_c"/>
 <bpmn:sequenceFlow id="close_end_c" sourceRef="close_c" targetRef="scope_end_c"/>
 <bpmn:subProcess id="events_c" name="Pushed work.c (non-interrupting)" triggeredByEvent="true">
-<bpmn:startEvent id="message_start_c" name="work.c" isInterrupting="false"><bpmn:messageEventDefinition id="message_definition_c" messageRef="message_c"/></bpmn:startEvent><bpmn:callActivity id="call_c" name="Call child c"><bpmn:extensionElements><zeebe:calledElement processId="lab-child-c" propagateAllParentVariables="false" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source="= workMillis" target="workMillis"/><zeebe:input source="= roleKey" target="roleKey"/></zeebe:ioMapping></bpmn:extensionElements></bpmn:callActivity><bpmn:endEvent id="work_end_c"/>
+<bpmn:startEvent id="message_start_c" name="work.c" isInterrupting="false"><bpmn:messageEventDefinition id="message_definition_c" messageRef="message_c"/></bpmn:startEvent><bpmn:callActivity id="call_c" name="Call child c"><bpmn:extensionElements><zeebe:calledElement processId="lab-child-c" propagateAllParentVariables="false" propagateAllChildVariables="false"/><zeebe:ioMapping><zeebe:input source="= workMillis" target="workMillis"/><zeebe:input source="= roleKey" target="roleKey"/><zeebe:input source="= childId" target="childId"/></zeebe:ioMapping></bpmn:extensionElements></bpmn:callActivity><bpmn:endEvent id="work_end_c"/>
 <bpmn:sequenceFlow id="work_in_c" sourceRef="message_start_c" targetRef="call_c"/>
 <bpmn:sequenceFlow id="work_out_c" sourceRef="call_c" targetRef="work_end_c"/>
 </bpmn:subProcess></bpmn:subProcess>

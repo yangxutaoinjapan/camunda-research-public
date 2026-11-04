@@ -28,6 +28,7 @@ final class Serve {
     private final Map<Long, Map<String, Object>> finishedRows = new HashMap<>();
     private long cachedAt;
     private final Schedule schedule;
+    private Finisher finisher;
     Serve(CamundaClient client) throws IOException {
         this.client = client;
         schedule = new Schedule(client, WINDOW, java.nio.file.Path.of(Main.env("STATE_DIRECTORY", "/tmp"), "schedule.json"));
@@ -42,14 +43,13 @@ final class Serve {
 
     static void run(CamundaClient client) throws Exception {
         var app = new Serve(client);
+        app.finisher = new Finisher(client);
         var address = InetAddress.getByName(Main.env("LAB_HTTP_BIND", "127.0.0.1"));
         if (app.token != null && app.token.isBlank()) throw new IllegalArgumentException("Empty HTTP token");
         if (app.token == null && !address.isLoopbackAddress())
             throw new IllegalArgumentException("Non-loopback HTTP requires LAB_HTTP_TOKEN");
         int port = Integer.parseInt(Main.env("LAB_HTTP_PORT", "8088"));
         if (port < 1 || port > 65535) throw new IllegalArgumentException("Invalid HTTP port");
-        String enabled = Main.env("LAB_SERVE_WORKERS", "true");
-        if (!List.of("true", "false").contains(enabled)) throw new IllegalArgumentException("Invalid worker setting");
         byte[] page;
         try (var in = Serve.class.getResourceAsStream("/web/index.html")) {
             if (in == null) throw new IllegalStateException("Web page missing");
@@ -57,7 +57,6 @@ final class Serve {
         }
         var server = HttpServer.create(new InetSocketAddress(address, port), 32);
         try (var executor = Executors.newVirtualThreadPerTaskExecutor();
-             var workers = enabled.equals("true") ? new Main.Workers(client) : null;
              var scheduler = Executors.newSingleThreadScheduledExecutor()) {
             server.setExecutor(executor);
             server.createContext("/", x -> app.handle(x, page));
@@ -69,10 +68,13 @@ final class Serve {
                     try { app.schedule.tick(Instant.now()); }
                     catch (RuntimeException e) { System.err.println("Scheduler request failed; retrying in 15 seconds"); }
                 }, 0, 15, TimeUnit.SECONDS);
+                // Backstop for the child finish messages: a restart of this JVM loses the delayed publishes, the engine state does not.
+                app.finisher.start(Duration.ofSeconds(3));
                 server.start();
-                System.out.println("HTTP front end started; workers=" + enabled);
+                System.out.println("HTTP front end started; children are finished by message");
                 stopped.await();
             } finally {
+                app.finisher.close();
                 scheduler.shutdownNow();
                 server.stop(1);
                 try { Runtime.getRuntime().removeShutdownHook(hook); } catch (IllegalStateException ignored) { }
@@ -139,10 +141,16 @@ final class Serve {
                         String key = data.has("roleKey") ? data.get("roleKey").textValue() : open.isEmpty() ? null : open.getFirst();
                         if (key == null) throw new IllegalArgumentException("No open role. Open one first.");
                         if (!open.contains(key)) throw new IllegalArgumentException("That role is not open any more: it is draining, closed or unknown.");
-                        for (int i=0; i<data.get("count").intValue(); i++) client.newPublishMessageCommand()
-                            .messageName(WINDOW.message("work."+data.get("lane").textValue())).correlationKey(key)
-                            .messageId(UUID.randomUUID().toString()).timeToLive(Duration.ZERO)
-                            .variables(Map.of("workMillis",data.get("workMillis").longValue())).send().join();
+                        String lane = data.get("lane").textValue();
+                        long millis = data.get("workMillis").longValue();
+                        for (int i=0; i<data.get("count").intValue(); i++) {
+                            String childId = UUID.randomUUID().toString();
+                            client.newPublishMessageCommand()
+                                .messageName(WINDOW.message("work."+lane)).correlationKey(key)
+                                .messageId(UUID.randomUUID().toString()).timeToLive(Duration.ZERO)
+                                .variables(Map.of("workMillis",millis,"childId",childId)).send().join();
+                            finisher.track(lane, childId, millis);
+                        }
                         reply(x, 200, Map.of("roleKey", key));
                     }
                     case "/api/cancel" -> {

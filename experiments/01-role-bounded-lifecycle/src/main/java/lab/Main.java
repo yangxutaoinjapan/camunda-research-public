@@ -1,7 +1,6 @@
 package lab;
 
 import io.camunda.client.CamundaClient;
-import io.camunda.client.api.worker.JobWorker;
 import java.net.URI;
 import java.time.*;
 import java.util.*;
@@ -22,38 +21,39 @@ public final class Main {
     static String process(Window window) { return window.process; }
     static final String MINUTE_DEADLINE = "= date and time(substring(string(now()), 1, 16) + \":00Z\") + duration(\"PT1M\")";
     static String env(String key, String fallback) { return System.getenv().getOrDefault(key, fallback); }
-    static long workMillis() { return Long.parseLong(env("WORK_MILLIS", "200")); }
     public static void main(String[] args) {
         int status = 0;
         try {
-            if (args.length == 0) throw new IllegalArgumentException("Usage: deploy | worker | serve | publish --lane a|b|c [--count N] [--window month|minute] | experiment [--cleanup] | --cleanup");
+            if (args.length == 0) throw new IllegalArgumentException("Usage: deploy | retire | serve | publish --lane a|b|c [--count N] [--millis N] [--window month|minute] | experiment [--cleanup] | --cleanup");
             try (var executor = Executors.newVirtualThreadPerTaskExecutor(); var client = client(executor)) {
                 switch (args[0]) {
                     case "deploy" -> deploy(client, args.length == 3 && args[1].equals("--window")
                         ? Window.valueOf(args[2].toUpperCase(Locale.ROOT)) : Window.MONTH);
-                    case "worker" -> {
-                        try (var workers = new Workers(client)) {
-                            Runtime.getRuntime().addShutdownHook(new Thread(workers::close));
-                            new CountDownLatch(1).await();
-                        }
+                    case "retire" -> {
+                        if (args.length != 1) throw new IllegalArgumentException("Usage: retire");
+                        if (!retire(client)) status = 1;
                     }
                     case "serve" -> {
                         if (args.length != 1) throw new IllegalArgumentException("Usage: serve");
                         Serve.run(client);
                     }
                     case "publish" -> {
-                        String lane = null; int count = 1; Window window = Window.MONTH;
+                        String lane = null; int count = 1; long millis = 200; Window window = Window.MONTH;
                         for (int i = 1; i < args.length; i += 2) {
                             if (i + 1 == args.length) throw new IllegalArgumentException("Missing option value");
                             switch (args[i]) {
                                 case "--lane" -> lane = args[i + 1];
                                 case "--count" -> count = Integer.parseInt(args[i + 1]);
+                                case "--millis" -> millis = Long.parseLong(args[i + 1]);
                                 case "--window" -> window = Window.valueOf(args[i + 1].toUpperCase(Locale.ROOT));
                                 default -> throw new IllegalArgumentException("Unknown option");
                             }
                         }
-                        if (lane == null || !List.of("a", "b", "c").contains(lane) || count < 1) throw new IllegalArgumentException("Valid lane and positive count required");
-                        publish(client, window, lane, count, workMillis());
+                        if (lane == null || !List.of("a", "b", "c").contains(lane) || count < 1 || millis < 0 || millis > 600_000) throw new IllegalArgumentException("Valid lane, positive count and --millis 0..600000 required");
+                        try (var finisher = new Finisher(client)) {
+                            publish(client, window, lane, count, millis, finisher);
+                            finisher.awaitTracked(java.time.Duration.ofMillis(millis + 30_000)); // this process finishes its own children
+                        }
                     }
                     case "experiment" -> {
                         if (args.length > 2 || (args.length == 2 && !args[1].equals("--cleanup")))
@@ -87,10 +87,9 @@ public final class Main {
         AccessCredentials.requireRestEnvironment();
         var credentials = AccessCredentials.fromEnvironment();
         var b = CamundaClient.newClientBuilder().restAddress(URI.create(env("CAMUNDA_REST_ADDRESS", "http://localhost:8080")))
-            .preferRestOverGrpc(true).defaultJobWorkerStreamEnabled(false).useClientSideLoadBalancing(false)
+            .preferRestOverGrpc(true).useClientSideLoadBalancing(false)
             .grpcAddress(URI.create("http://127.0.0.1:26500"))
             .credentialsProvider(credentials).applyEnvironmentVariableOverrides(true)
-            .jobHandlingExecutor(executor, false).numJobWorkerExecutionThreads(1)
             .maxHttpConnections(8).defaultRequestTimeout(Duration.ofSeconds(15));
         return b.build();
     }
@@ -123,6 +122,31 @@ public final class Main {
         return response.getProcesses().stream().filter(p -> p.getBpmnProcessId().equals(window.process))
             .findFirst().orElseThrow().getProcessDefinitionKey();
     }
+    /**
+     * Cancels every ACTIVE role (monthly and minute) and then every ACTIVE child, so a new definition can replace an old one whose
+     * children cannot finish any more. Cancelling a role cascades to its children; the second pass catches orphans. Definitions
+     * are not deleted. Idempotent. Returns false when instances are still ACTIVE after the wait.
+     */
+    static boolean retire(CamundaClient c) throws InterruptedException {
+        int roles = 0, children = 0;
+        for (String definition : List.of("worker-role-monthly", "worker-role-minute"))
+            for (var p : Instances.search(c, f -> f.processDefinitionId(definition).state(io.camunda.client.api.search.enums.ProcessInstanceState.ACTIVE))) {
+                c.newCancelInstanceCommand(p.getProcessInstanceKey()).send().join(); roles++;
+            }
+        long end = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(90);
+        while (true) {
+            int left = 0;
+            for (String lane : List.of("a", "b", "c"))
+                for (var p : Instances.search(c, f -> f.processDefinitionId("lab-child-" + lane).state(io.camunda.client.api.search.enums.ProcessInstanceState.ACTIVE))) {
+                    left++;
+                    try { c.newCancelInstanceCommand(p.getProcessInstanceKey()).send().join(); children++; }
+                    catch (io.camunda.client.api.command.ProblemException e) { /* already gone: the cascade got it first */ }
+                }
+            if (left == 0) { System.out.println("Retired: " + roles + " role(s) cancelled, " + children + " orphan child(ren) cancelled; no ACTIVE lab instance remains"); return true; }
+            if (System.nanoTime() > end) { System.out.println("Retire incomplete: " + left + " ACTIVE child instance(s) remain after 90 s"); return false; }
+            Thread.sleep(3000);
+        }
+    }
     static Object evaluate(CamundaClient c, String expression) {
         var result = c.newEvaluateExpressionCommand().expression(expression).send().join();
         if (!result.getWarnings().isEmpty() || result.getResult() == null)
@@ -138,31 +162,16 @@ public final class Main {
     static String roleKey(CamundaClient c, Window window) {
         return evaluate(c, window.keyExpression).toString();
     }
-    static String publish(CamundaClient c, Window window, String lane, int count, long millis) throws java.io.IOException {
+    static String publish(CamundaClient c, Window window, String lane, int count, long millis, Finisher finisher) throws java.io.IOException {
         String last = new Schedule(c, window, null).openKey();
         for (int i = 0; i < count; i++) {
+            String childId = UUID.randomUUID().toString();
             c.newPublishMessageCommand().messageName(window.message("work." + lane)).correlationKey(last)
                 .messageId(UUID.randomUUID().toString()).timeToLive(Duration.ZERO)
-                .variables(Map.of("workMillis", millis)).send().join();
+                .variables(Map.of("workMillis", millis, "childId", childId)).send().join();
+            finisher.track(lane, childId, millis);
         }
         System.out.printf("Published %d work.%s; last route=%s (acceptance is not proof of correlation)%n", count, lane, last);
         return last;
-    }
-    static final class Workers implements AutoCloseable {
-        private final List<JobWorker> workers = new ArrayList<>();
-        Workers(CamundaClient c) {
-            try {
-                for (String lane : List.of("a", "b", "c")) workers.add(c.newWorker().jobType("lab.work." + lane)
-                    .handler((jc, job) -> {
-                        Object duration = job.getVariable("workMillis");
-                        long millis = duration instanceof Number n ? n.longValue() : workMillis();
-                        if (millis < 0 || millis > 600_000) throw new IllegalArgumentException("workMillis outside 0..600000");
-                        try { Thread.sleep(millis); }
-                        catch (InterruptedException e) { Thread.currentThread().interrupt(); return; }
-                        jc.newCompleteCommand(job).send().join();
-                    }).maxJobsActive(8).timeout(Duration.ofDays(90)).pollInterval(Duration.ofMillis(100)).open());
-            } catch (RuntimeException e) { close(); throw e; }
-        }
-        public synchronized void close() { workers.forEach(JobWorker::close); workers.clear(); }
     }
 }
