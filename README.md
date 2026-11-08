@@ -16,6 +16,7 @@ than the current state of a running environment.
 | [Human approval before a runbook](notes/human-approval-gating-a-runbook.md) | How can preview, approval, execution, verification, and reporting remain distinct when jobs are retried? |
 | [Parent and child workflows with message starts](notes/parent-child-workflows-with-message-starts.md) | How do stable request identities, a ledger, and guarded children support controlled ingress? |
 | [Moving Camunda off an old entry point](notes/moving-camunda-off-a-remote-host.md) | How can application traffic move while identity paths remain available? |
+| [Retiring a project from a parent workflow](notes/retiring-a-project-from-a-parent-workflow.md) | Why did per-project start events and position-based names make removal impossible without an engine restart, and how can removal be as small as addition? |
 
 The notes were drafted by AI assistants (Claude and Codex) from the author's own
 operating records and then reviewed by the author.
