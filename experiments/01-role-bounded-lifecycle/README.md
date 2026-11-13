@@ -101,7 +101,7 @@ prevent a drain; the Java side therefore re-sends it from the engine's own state
 | **Deadline** | The absolute UTC time after which a lane stops waiting for the race. |
 | **Close** | Ending the race early by the `role.close` message. Three messages are needed because each lane is a separate subscription. |
 | **Drain** | The period after the race is decided in which the role stays alive until its children finish. |
-| **Tick** | The scheduler's check, every 15 seconds, whether the current period already has a role. |
+| **Tick** | The scheduler's check, every 60 seconds, whether the current period already has a role. |
 
 ## Frequently asked questions
 
@@ -171,7 +171,7 @@ UTC start rules: `day of month D at HH:MM` (D 1–28), or
 Calendar close means that day/time in the month following the period start.
 Defaults: disabled, day 1 at 00:00, closes day 1 at 00:00 next month.
 
-Every 15 seconds, including immediately on startup, the scheduler searches the
+Every 60 seconds, including immediately on startup, the scheduler searches the
 role definition by `roleKey`, including completed roles. If absent it publishes
 `role.open`, messageId = roleKey, TTL 60 seconds, with `roleKey` and ISO instant
 `deadline`. Keys use period start: `role-yyyy-MM` or `role-yyyy-MM-ddTHH:mm`.

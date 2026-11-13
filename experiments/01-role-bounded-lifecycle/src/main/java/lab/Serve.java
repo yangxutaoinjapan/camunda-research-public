@@ -66,10 +66,10 @@ final class Serve {
             try {
                 scheduler.scheduleWithFixedDelay(() -> {
                     try { app.schedule.tick(Instant.now()); }
-                    catch (RuntimeException e) { System.err.println("Scheduler request failed; retrying in 15 seconds"); }
-                }, 0, 15, TimeUnit.SECONDS);
+                    catch (RuntimeException e) { System.err.println("Scheduler request failed; retrying in 60 seconds"); }
+                }, 0, 60, TimeUnit.SECONDS);
                 // Backstop for the child finish messages: a restart of this JVM loses the delayed publishes, the engine state does not.
-                app.finisher.start(Duration.ofSeconds(3));
+                app.finisher.start(Duration.ofSeconds(30));
                 server.start();
                 System.out.println("HTTP front end started; children are finished by message");
                 stopped.await();
@@ -212,7 +212,7 @@ final class Serve {
         x.sendResponseHeaders(code, data.length); x.getResponseBody().write(data);
     }
     private synchronized byte[] roles() throws IOException {
-        if (cachedRoles != null && System.nanoTime() - cachedAt < TimeUnit.SECONDS.toNanos(3)) return cachedRoles;
+        if (cachedRoles != null && System.nanoTime() - cachedAt < TimeUnit.SECONDS.toNanos(10)) return cachedRoles;
         var result = new ArrayList<Map<String, Object>>();
         var roles = Instances.search(client, f -> f.processDefinitionId(Main.process(WINDOW)));
         roles.sort(Comparator.comparing((io.camunda.client.api.search.response.ProcessInstance p) -> p.getState() != ProcessInstanceState.ACTIVE)

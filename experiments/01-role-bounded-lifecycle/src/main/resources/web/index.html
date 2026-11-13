@@ -302,7 +302,7 @@ async function loadClock(){
   catch(e){$('engine').textContent='engine unavailable';$('engine').className='t s-bad';}
 }
 async function refresh(){if(busy)return;busy=true;await Promise.allSettled([loadRoles(),loadSchedule(),loadClock()]);busy=false;}
-function loop(){refresh().finally(()=>setTimeout(loop,Date.now()<fastUntil?2000:5000));}
+function loop(){refresh().finally(()=>setTimeout(loop,Date.now()<fastUntil?3000:15000));}
 
 /* ---- actions: say what is happening, then what happened, in the row of the action and in the log */
 async function run(resId,what,object,path,body,done,after){

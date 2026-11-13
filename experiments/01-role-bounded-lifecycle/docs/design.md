@@ -21,7 +21,7 @@ this fan-out, subscription cancellation, and drain behavior is pending. Work
 arrival racing closure follows engine ordering; publication acceptance alone
 does not establish correlation. Incidents or unbounded work can prevent drain.
 
-The same-JVM scheduler runs inside `serve` every 15 seconds, immediately on
+The same-JVM scheduler runs inside `serve` every 60 seconds, immediately on
 startup. UTC rules and exact API shapes are documented in the [README](../README.md).
 Month days are restricted to 1–28; minute intervals are epoch-aligned. Close
 is a positive duration or a date/time in the next monthly period. Config is
@@ -74,7 +74,7 @@ which counts as sent.
 
 A delayed publish held only in memory dies with the process, which would strand the
 child exactly as a lost job did. So the delayed publish is only the fast path. The
-reconciler (`Finisher.reconcile`, every 3 s in `serve`, every 1 s in `experiment`)
+reconciler (`Finisher.reconcile`, every 30 s in `serve`, every 1 s in `experiment`)
 reads the engine's ACTIVE `lab-child-*` instances, reads their `childId` and
 `workMillis` once, and publishes the finish for each child whose start time plus
 workMillis has passed. State lives in the engine, not in the JVM.

@@ -1,21 +1,12 @@
 # Findings: experiment 01
 
-Current revision: operator-controlled UTC scheduler, message-started roles, early
-close and plain table UI. Offline Java compilation and 21 schedule arithmetic,
-validation and persistence checks passed; credential regression checks passed.
-No network, engine, package build or remote deployment was used. Live deployment,
-message start de-duplication, three-message close correlation, timer races, child
-drain/ancestry, cleanup cascade, permissions and full minute proof remain pending.
-Browser interaction and actual systemd state-directory behavior are unverified.
-BPMN model validation passed for the role and all three children; structural
-checks confirm three event races, three non-interrupting event subprocesses and
-three calls, with no start cron. Inline JavaScript syntax and diff whitespace
-checks passed. Calculated WCAG text contrast: light text 16.29:1, light attention
-7.46:1, dark text 15.17:1, dark attention 9.76:1 (all exceed AA 4.5:1).
-The live harness now adds a separate early-close/drain phase after the original
-18-child deadline proof; final expected totals are two roots and 21 children.
-Exact schedule request/response JSON is in the experiment README.
-
+Status (2026-11-13): the message-driven design (children started and finished by
+messages only, no job worker, no service task) has now run live three times: the
+17-assertion minute-variant proof of 2026-11-04, a 72-hour role that started the
+same day, and a 3-hour role on 2026-11-13. The results are at the end of this file
+("Scheduled runs"). Everything between this paragraph and that section describes
+earlier designs or earlier states of the same one and is kept as history; where it
+says "pending" it means pending at that date.
 
 Previous v3 status: implemented and checked offline; no engine available for the new live
 proof. Parent/root ancestry, call completion, cancellation cascade, deployment,
@@ -144,3 +135,52 @@ PASS, including a child of 70 s that kept its role draining and finished by mess
 three-lane early close, 18 children with correct ancestry in the deadline phase and 21 in
 total, and cleanup of the minute roles. Role lifetimes: W1 PT1M23.883S (window PT59.69S +
 drain PT24.193S), W2 PT53.007S. No job worker took part. One sample; not a load test.
+
+### 2026-11-04: request volume
+
+The reverse proxy in front of the engine counted about 3.4 requests a second (26,735 in
+131 minutes) on 2026-11-04. The lab client was one source: the finish-message reconciler
+searched every 3 s and the scheduler every 15 s, and an open page refreshed the role table
+every 5 s. Intervals are now 30 s for the reconciler (the delayed publish is the fast path,
+the reconciler only a backstop), 60 s for the scheduler, 15 s for an idle page (3 s right
+after an action) and a 10 s cache for the role table. Not measured after the change: the
+new request rate.
+
+## Scheduled runs: one root instance per window (2026-11-04 and 2026-11-13)
+
+Engine: self-managed Camunda 8.10, the lab client on a small host. Both roles were started
+through the lab client, not by a test harness; the numbers below are read back from the
+engine's search API after the run (read-only).
+
+| | Role of 2026-11-04 | Role of 2026-11-13 |
+| --- | --- | --- |
+| Window | 72 h (05:38 to 05:38 UTC) | 3 h (03:11 to 06:11 UTC) |
+| Root instances | 1 | 1 |
+| Children `lab-child-a` / `b` / `c` | 1040 / 980 / 440 (2460) | 40 / 40 / 60 (140) |
+| Children whose parent and root are the role | all | all |
+| Children COMPLETED / still ACTIVE | 2460 / 0 | 140 / 0 |
+| Children with an incident | 0 | 0 |
+| Child lifetime | 31.5 to 238.5 s | 120.0 to 120.2 s |
+| Role lifetime | 72 h 0.7 s | 2 h 59 min 59.9 s |
+| Job workers involved | none | none |
+
+What this shows:
+
+- With a role that owns the window and children started as called instances, a 72-hour
+  window with 2460 units of work produced one root instance. The design the experiment
+  replaced (message-start children) would have produced 2461.
+- The failure that motivated the redesign (24 children left ACTIVE behind a lost job) did
+  not occur: nothing was left ACTIVE after either role ended, and no incident was raised.
+- The role ended at its window end although children were still being created until
+  about seven hours into the first window; the scope-completion rule needs no polling.
+
+What it does not show:
+
+- On 2026-11-13 all 140 children were started within 14 seconds, early in the window, so no
+  child was still running when the window closed in either run (the minute-variant proof of
+  2026-11-04 does cover that, with a 70 s child).
+- One engine, one version, two samples. The request rate after the 2026-11-04 interval
+  change, client memory on the 1 GiB host, a month boundary and engine downtime during a
+  window were not measured.
+- Operate or search latency under a much larger child count was not measured; the largest
+  role here has 2460 children.
