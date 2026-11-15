@@ -59,6 +59,31 @@ The retirement of the product's runtime objects (workload, routes, listener,
 database) was straightforward and used existing runbooks. Only the governance
 definitions had no retirement path.
 
+Executed once for three projects. The checklist above was followed in full for three retired projects in one
+approved change. The parent definition held seventeen sets of elements; three were removed and the following twelve
+renumbered by a script, with the checker passing afterwards. Two edit strategies were compared. Re-serialising the
+definition with an XML library rewrote the whole file (a diff of more than two thousand lines for what is a 330-line
+deletion); removing the elements at line level and leaving the rest byte-identical gave the minimal diff, and the result
+still parsed with no dangling references. Leaving gaps in the numbering instead of renumbering failed the checker, so
+the gap approach is not an option while names are positional.
+
+Self-tests that count. Besides the policy checker, four tests held a literal that depended on the retired projects: a
+count of delivery projects (six, then three), a count of checks classified as sensitive (79, then 76 after three of
+them were deleted with the projects' guards), a count of checks opted in to a local model (two, then one), and a count of
+notification targets. None of them failed on the project edit itself; they failed in CI afterwards, which is why the
+whole CI job was run locally before pushing.
+
+Start-up configuration creates, it never removes. The engine was restarted with the retired clients and grants deleted
+from its start-up configuration. A read-only query afterwards still found six authorizations (three per-project
+publisher grants and the parent machine client's grants on three parent messages) and seven client identities of the
+retired projects. Editing the configuration is therefore necessary for the next wipe-and-restore but does nothing to a
+running engine. A small script that deletes exactly those names, refuses to touch any other owner, and reads every removal
+back removed them; the engine's authorization search lags a delete, so the read-back polls for a short time.
+
+The restart was a separate, manual step. The Application that carries the engine's configuration is synchronised by
+hand, so merging the change left it out of sync; a second approved change synchronised only that Application and read back
+healthy brokers and partitions. Between the two, nothing was interrupted.
+
 ## What works
 
 Treat the registry as the only place a project is described, and generate
@@ -83,19 +108,19 @@ through the engine's identity API from the same registry, and keep the start-up
 configuration to the few identities needed before the API is reachable. Then a
 retirement revokes grants without a restart.
 
+What the executed retirement confirmed: scripted renumbering of positional names is mechanical and checker-safe; a line-level edit keeps the diff reviewable; and a read-only listing of identities and grants before and after is the only proof that a retirement removed authority, because configuration cannot show it.
+
 Give retirement its own runbook, with read-back. It should cover the registry,
 the grants, the secret paths, the Git account and the broker client in one
 approved change and verify each absence, in the way creation already does.
 
 ## What we did not verify
 
-- The proposed design was not implemented in the observed environment. The
-  migration order and the cost of each step are estimates.
+- The proposed design (registry-generated definitions, names by key, grants through the identity API) was not implemented. Only the existing checklist was executed, once, so the cost of the checklist is measured for one retirement of three projects and the cost of the proposed design is still an estimate.
 - We did not test whether reconciling clients and authorizations through the
   identity API covers every grant type used here on the tested engine version
   (Camunda 8.10).
-- We did not measure how long a start-up configuration change interrupts the
-  engine; it was avoided rather than timed.
 - A single message start with lookup may change how correlation keys and
   per-project permissions are expressed; the effect on duplicate handling was
   not exercised.
+- We did not measure how long the engine was unavailable during the restart; the restart was taken at a time when nothing was waiting on it.

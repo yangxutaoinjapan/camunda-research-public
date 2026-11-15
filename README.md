@@ -43,8 +43,8 @@ establishes only the behavior exercised by that run.
 ## Working paper
 
 The [English working paper](paper/working-paper.md) and
-[Japanese working paper](paper/working-paper.ja.md) discuss operational checks
-and the limits of their evidence. It is a working paper, not peer reviewed, and
+[Japanese working paper](paper/working-paper.ja.md) ask what a passing
+operational check actually checked, through eleven episodes, three plain questions and the limits of the evidence. It is a working paper, not peer reviewed, and
 **its full text was written by AI assistants (Claude and Codex)**, which the paper
 also states in its own text. It is not specific to Camunda and is kept here as
 supplementary reading alongside the notes and experiments.
